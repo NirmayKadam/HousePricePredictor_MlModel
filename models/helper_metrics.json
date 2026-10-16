@@ -1,0 +1,39 @@
+{
+  "ocean": {
+    "params": {
+      "n_neighbors": 3,
+      "weights": "distance"
+    },
+    "cv_accuracy": 0.9901284792764979,
+    "test_accuracy": 0.9917635658914729
+  },
+  "income": {
+    "model": "Random Forest",
+    "r2": 0.5607902121425581,
+    "mae": 0.8654997929862243,
+    "rmse": 1.2453369734757513
+  },
+  "income_cv": [
+    {
+      "model": "Random Forest",
+      "CV R2": "0.565 \u00b1 0.011",
+      "CV MAE": "0.871 \u00b1 0.014",
+      "CV RMSE": "1.256 \u00b1 0.028",
+      "seconds": 13.1
+    },
+    {
+      "model": "k-NN regressor",
+      "CV R2": "0.505 \u00b1 0.006",
+      "CV MAE": "0.924 \u00b1 0.010",
+      "CV RMSE": "1.340 \u00b1 0.020",
+      "seconds": 0.1
+    },
+    {
+      "model": "XGBoost (cuda)",
+      "CV R2": "0.491 \u00b1 0.007",
+      "CV MAE": "0.934 \u00b1 0.016",
+      "CV RMSE": "1.359 \u00b1 0.028",
+      "seconds": 42.7
+    }
+  ]
+}

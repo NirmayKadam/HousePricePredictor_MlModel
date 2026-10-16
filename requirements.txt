@@ -1,7 +1,24 @@
-streamlit
-scikit-learn
-numpy
-pandas
-joblib
-xgboost
-pydeck
+# Core data science
+numpy==1.26.4
+pandas==2.2.3
+scipy==1.13.1
+scikit-learn==1.6.1
+statsmodels==0.14.4
+joblib==1.4.2
+
+# XGBoost: the Windows/Linux pip wheel includes CUDA support (used automatically if an NVIDIA GPU is present)
+xgboost==2.1.4
+
+# Visualisation
+matplotlib==3.9.4
+seaborn==0.13.2
+
+# App
+streamlit==1.41.1
+pyarrow==18.1.0
+folium==0.19.4
+streamlit-folium==0.24.0
+
+# Running the notebooks
+ipykernel
+nbconvert

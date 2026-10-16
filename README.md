@@ -1,143 +1,107 @@
-California Housing Price Predictor
-This project presents a comprehensive, end-to-end data science application designed to predict median house values in California. It features an interactive web application built with Streamlit that provides a seamless and intuitive user experience. The backend is powered by a sophisticated, tuned XGBoost machine learning model.
+# California House Price Predictor
 
-A key architectural feature of this project is its model chaining approach. Instead of requiring users to input complex statistical data, the application uses a series of "helper" models to automatically derive necessary features—such as neighborhood income level and ocean proximity—based on a simple map click. This design philosophy bridges the gap between a powerful, data-hungry model and a user-friendly, accessible interface.
+An end-to-end Machine Learning and Spatial Data Science project (DMBI) that predicts the **median house value of California census block groups**. The project benchmarks Ordinary Least Squares **Linear Regression** against **Random Forest** and **XGBoost** (GPU-accelerated with CUDA) and deploys the best-performing model in an interactive **Streamlit** geospatial application.
 
-Live Demo
-(A link to your deployed Streamlit application will go here once you deploy it!)
+---
 
-Features
-Interactive Map Input: The primary user interaction is a map of California, powered by Folium and rendered within Streamlit. Users can pan and zoom, but the view is constrained to the state's boundaries to ensure valid geographical inputs. A single click captures the precise latitude and longitude for the prediction.
+## Documentation Suite
 
-User-Friendly Abstraction: The application intentionally abstracts away the complex features of the original dataset. Instead of asking for statistical inputs like "median income for block" or "total households," it prompts the user for simple, relatable details like the age of a house, the number of rooms, and a general description of the neighborhood (e.g., 'Suburban', 'Urban', 'Rural').
+Detailed technical, mathematical, and architectural documentation is available in the [`docs/`](file:///d:/Nirmay%20pc/ENGINEERING/projects/HousePricePredictor_MlModel/docs) directory:
 
-Automated Feature Prediction: This is the core of the model chaining strategy. When a user selects a location, two helper models run instantly in the background:
+* **[Documentation Hub (`docs/README.md`)](file:///d:/Nirmay%20pc/ENGINEERING/projects/HousePricePredictor_MlModel/docs/README.md):** Full navigation index and guide.
+* **[Research and Dataset (`docs/research_and_dataset.md`)](file:///d:/Nirmay%20pc/ENGINEERING/projects/HousePricePredictor_MlModel/docs/research_and_dataset.md):** Census block group granularity, Pace & Barry (1997) origin, distributions, $500,001 censoring, and ethical considerations surrounding algorithmic redlining.
+* **[ML Training and Process (`docs/ml_training_and_process.md`)](file:///d:/Nirmay%20pc/ENGINEERING/projects/HousePricePredictor_MlModel/docs/ml_training_and_process.md):** Data leakage prevention, income-stratified splitting, OLS from first principles (Normal Equations and SVD), GPU-accelerated XGBoost tuning, and coordinate helper models.
+* **[Results and Insights (`docs/results_and_insights.md`)](file:///d:/Nirmay%20pc/ENGINEERING/projects/HousePricePredictor_MlModel/docs/results_and_insights.md):** Cross-validation vs test benchmarks, paired t-test ($p < 0.001$), spatial holdout cross-validation (`Spatial GroupKFold`), residual diagnostics, and feature importance.
+* **[Code Architecture (`docs/code_architecture.md`)](file:///d:/Nirmay%20pc/ENGINEERING/projects/HousePricePredictor_MlModel/docs/code_architecture.md):** Codebase structure, `housing_features.py` API reference, `app.py` caching and geodesic validation, and serialized model schemas.
 
-A K-Nearest Neighbors model predicts the area's ocean proximity category.
+---
 
-A highly-tuned Random Forest model predicts the median income level for that neighborhood.
-This automated process enriches the data provided to the main model without requiring any expert knowledge from the user.
+## Dataset Overview
 
-Dual Prediction Output: Upon successful prediction, the application presents two key pieces of information: the estimated median house value for that location and the predicted ocean proximity category, providing a more complete picture of the property.
+| Attribute | Specification |
+|---|---|
+| **Data File** | [`housing.csv`](file:///d:/Nirmay%20pc/ENGINEERING/projects/HousePricePredictor_MlModel/housing.csv): 20,640 rows × 10 columns |
+| **Origin** | 1990 U.S. Census, compiled by R. K. Pace & R. Barry, *"Sparse Spatial Autoregressions"*, Statistics & Probability Letters 33 (1997) 291–297; distributed via StatLib (CMU) |
+| **Variant** | From A. Géron, *Hands-On Machine Learning* (adds `ocean_proximity` and 207 missing `total_bedrooms`) |
+| **Unit of Analysis** | One **census block group** (~600–3,000 residents), **not** an individual home |
+| **Target Variable** | `median_house_value` (USD, right-censored at $500,001) |
 
-Robust Input Validation: To ensure the model's predictions are reliable, the application enforces strict input validation. The interactive map is visually and functionally constrained to California's geographical boundaries. The main "Predict" button remains disabled until a valid location within these bounds is selected, preventing out-of-scope predictions.
+---
 
-Project Workflow
-This project follows a complete machine learning workflow, from initial data exploration and feature engineering to model training, evaluation, and final application deployment.
+## Benchmark Results
 
-Data Loading and Preprocessing:
+Evaluated on the held-out test set (4,128 block groups) after 5-fold cross-validation on the 16,512 training instances:
 
-The workflow begins by loading the housing.csv dataset, which is based on the 1990 California census data, using the Pandas library.
+| Model | 5-Fold CV RMSE (mean ± std) | Test MAE | Test RMSE | Test $R^2$ | Overfit Gap |
+|---|---|---|---|---|---|
+| **Baseline (Mean)** | $115,699 ± 1,068 | $90,807 | $114,165 | 0.000 | 0.000 |
+| **Linear Regression (OLS)** | $67,831 ± 742 | $50,542 | $67,807 | 0.647 | 0.012 |
+| **Linear Regression (Log Target)** | $66,027 ± 972 | $44,974 | $79,670 | 0.513 | 0.165 |
+| **Random Forest (CPU)** | $49,153 ± 877 | $31,111 | $46,826 | 0.832 | 0.144 |
+| **XGBoost (GPU CUDA)** | **$45,053 ± 964** | **$28,219** | **$42,736** | **0.860** | **0.123** |
 
-An initial exploratory data analysis reveals the presence of missing values, particularly in the total_bedrooms column. To maintain data integrity for the model, a simple and effective strategy of dropping all rows with any missing values is employed.
+### Key Experimental Findings
+1. **Statistical Superiority:** XGBoost outperforms Random Forest across every cross-validation fold (paired two-tailed t-test: $t = 23.52, p < 0.001$), reducing test RMSE by 37.0% relative to OLS.
+2. **Spatial Autocorrelation:** Under 0.5° coordinate holdout (`Spatial GroupKFold`), tree models experience an $R^2$ drop to ~0.71, demonstrating that standard random K-fold partially overfits to local coordinate clusters.
+3. **Chained App Performance:** When users select locations on the map and inputs are estimated via spatial helper models, the app achieves an $R^2$ of **0.83** and MAE of **$31,410**, which is transparently reported in the UI.
 
-Feature Engineering:
+All metrics are persisted in [`reports/`](file:///d:/Nirmay%20pc/ENGINEERING/projects/HousePricePredictor_MlModel/reports) and visual figures in [`figures/`](file:///d:/Nirmay%20pc/ENGINEERING/projects/HousePricePredictor_MlModel/figures).
 
-To enhance the model's predictive power, new, more insightful features are engineered from the existing data. This step is based on the hypothesis that relative metrics can be more powerful than absolute counts.
+---
 
-bedroom_ratio: Calculated as total_bedrooms / total_rooms. This feature helps capture the property's composition (e.g., family homes vs. studio-like layouts).
+## Project Structure
 
-household_rooms: Calculated as total_rooms / households. This feature provides a proxy for the average size of homes in a given block.
+```
+├── docs/                        # Complete technical documentation suite
+│   ├── README.md                # Documentation navigation hub
+│   ├── research_and_dataset.md  # Dataset origin, schema, censoring, and ethics
+│   ├── ml_training_and_process.md# Pipelines, OLS math, model tuning, GPU setup
+│   ├── results_and_insights.md  # Metrics, t-tests, spatial CV, and residuals
+│   └── code_architecture.md     # Module API, app caching, artifact specs
+├── housing_features.py          # Shared feature engineering, preprocessors, GPU detection
+├── Trainer_helper_model.ipynb   # Helper models for app inference (ocean k-NN, income RF)
+├── DMBI_Project_v2.ipynb        # Full exploratory analysis, OLS derivation, model tuning
+├── app.py                       # Interactive Folium + Streamlit geospatial web app
+├── housing.csv                  # Source census dataset
+├── requirements.txt             # Pinned project dependencies
+├── figures/                     # 12 analytical plots and decision summary dashboard
+├── reports/                     # Output metrics (CSV, JSON, permutation importance)
+└── models/                      # Serialized Joblib pipelines and metadata JSON
+```
 
-Model Training - A Chained Approach:
-The core of the project's design is a two-stage training process, separating the helper models from the main prediction model.
+---
 
-Helper Models (Trainer_helper_model.ipynb): Two specialized models are trained to automate data generation.
+## Setup and Installation
 
-Ocean Proximity Model: A KNeighborsClassifier is trained to classify a location into one of five ocean proximity categories based solely on its latitude and longitude. K-NN is well-suited for this task due to the inherent spatial nature of the data. It achieves a high accuracy, making it a reliable feature generator.
-
-Income Level Model: A RandomForestRegressor is trained to predict a neighborhood's median_income (a numerical value) from its latitude and longitude. The choice of Random Forest was the result of a competitive evaluation where it was benchmarked against an XGBoostRegressor and a GradientBoostingRegressor. It was selected for its superior R² score on this specific sub-task.
-
-Main Model (DMBI_Project_v2.ipynb): The primary XGBoost Regressor is trained to predict the final median_house_value.
-
-It utilizes the full set of processed and engineered features.
-
-To achieve maximum performance, the model undergoes extensive hyperparameter tuning using GridSearchCV. This process systematically searches through a predefined grid of parameter combinations (e.g., n_estimators, max_depth, learning_rate) using 3-fold cross-validation to find the optimal configuration that minimizes error and prevents overfitting.
-
-Interactive Web Application (app.py):
-
-The final stage is the user-facing application built with Streamlit.
-
-The app's logic includes a crucial "translation layer." It converts the user's simple inputs (e.g., selecting 'Suburban' as the neighborhood type) into numerical estimates for population and households that the main model requires.
-
-When the "Predict" button is clicked, the app gathers all the features—user-provided, translated, and auto-predicted by the helper models—into a final DataFrame.
-
-This DataFrame is then passed through a saved StandardScaler (fit on the original training data) to ensure the data is in the correct scale and format before being fed into the main XGBoost model for the final prediction.
-
-Tech Stack & Models
-Framework: Streamlit
-
-Core Libraries: Pandas, Scikit-learn, XGBoost, Folium, Matplotlib, Seaborn
-
-Main Prediction Model: XGBoost Regressor (tuned with GridSearchCV)
-
-Helper Models:
-
-Income Prediction: Random Forest Regressor
-
-Ocean Proximity: K-Nearest Neighbors Classifier
-
-Project Structure
-.
-├── app.py                         # The main Streamlit application file
-├── DMBI_Project_v2.ipynb          # Jupyter Notebook for training the main model
-├── Trainer_helper_model.ipynb     # Jupyter Notebook for training helper models
-├── housing.csv                    # The raw dataset used for training
-├── requirements.txt               # Required Python packages for the project
-└── ... (Model files are generated locally by the notebooks)
-
-Setup and Installation
-To run this project on your local machine, please follow these steps:
-
-1. Prerequisites:
-
-Python 3.8+
-
-Git installed
-
-2. Clone the Repository:
-
-git clone [https://github.com/NirmayKadam/DMBI_project_mk2.git](https://github.com/NirmayKadam/DMBI_project_mk2.git)
-cd DMBI_project_mk2
-
-3. Create a Virtual Environment:
-It's a strong best practice to use a virtual environment to manage project dependencies and avoid conflicts.
-
-# For Windows
-python -m venv venv
-venv\Scripts\activate
-
-# For macOS/Linux
-python -m venv venv
-source venv/bin/activate
-
-4. Install Dependencies:
-Install all the required packages listed in the requirements.txt file using pip.
-
+### 1. Environment Setup
+```powershell
+python -m venv .venv
+.venv\Scripts\activate
 pip install -r requirements.txt
+python -m ipykernel install --user --name housing-venv
+```
 
-How to Run
-Because the model files (.joblib) are not included in this repository, you must first train the models locally. This process will generate the necessary files for the application to run.
+**GPU Acceleration:** The installed `xgboost` wheel includes CUDA support. When an NVIDIA GPU (e.g., RTX 3050) and drivers are present, [`housing_features.get_xgb_device()`](file:///d:/Nirmay%20pc/ENGINEERING/projects/HousePricePredictor_MlModel/housing_features.py) selects `"cuda"` automatically; otherwise it gracefully falls back to CPU.
 
-1. Train the Models:
-Run the Jupyter Notebooks in the following order. This entire process may take several minutes, depending on your hardware.
+---
 
-First, open and run all cells in Trainer_helper_model.ipynb. This will create ocean_model.joblib, ocean_encoder.joblib, and income_model.joblib.
+## Running the Project
 
-Second, open and run all cells in DMBI_Project_v2.ipynb. This will create housing_xgb_model.joblib and housing_scaler.joblib.
+### Retraining Models (Optional)
+Pre-trained artifacts are included in [`models/`](file:///d:/Nirmay%20pc/ENGINEERING/projects/HousePricePredictor_MlModel/models). To re-execute training from scratch:
+1. Run all cells in [`Trainer_helper_model.ipynb`](file:///d:/Nirmay%20pc/ENGINEERING/projects/HousePricePredictor_MlModel/Trainer_helper_model.ipynb).
+2. Run all cells in [`DMBI_Project_v2.ipynb`](file:///d:/Nirmay%20pc/ENGINEERING/projects/HousePricePredictor_MlModel/DMBI_Project_v2.ipynb).
 
-2. Launch the Streamlit App:
-Once all five .joblib files have been successfully created, you can launch the application.
-
+### Launching the Interactive Web Application
+```powershell
 streamlit run app.py
+```
+Open `http://localhost:8501` in your browser. Users can select area characteristics in the sidebar, click any location within California on the interactive Folium map, and compute estimated valuations alongside error intervals.
 
-This command starts a local web server, and your default browser should automatically open to the application's URL.
+---
 
-Potential Future Improvements
-Deployment: Deploy the application to a cloud service like Streamlit Community Cloud or Hugging Face Spaces to make it publicly accessible.
+## Limitations and Ethical Notice
 
-Model Management with Git LFS: Implement Git Large File Storage (LFS) to include the pre-trained .joblib files directly in the repository. This would simplify the setup process for new users, as they would not need to re-train the models.
-
-Advanced Feature Engineering: Experiment with more complex features, such as creating geographical clusters to represent distinct real estate sub-regions or incorporating polynomial features for key variables.
-
-Data Visualization: Enhance the Streamlit app by adding a "Data Explorer" page with interactive charts and maps (e.g., a heatmap of house prices across California) to provide more insights from the dataset.
+* **Historical Data (1990):** Dollar values are in 1990 currency and do not reflect current nominal values.
+* **Capped Target:** The census capped valuations at $500,001. High-value coastal estates are systematically understated.
+* **Algorithmic Redlining:** Geographic coordinates and income correlate with demographic makeup. Valuations must never be used for individual mortgage underwriting, tenant screening, or insurance determination.

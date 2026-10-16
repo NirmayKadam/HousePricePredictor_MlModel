@@ -1,0 +1,145 @@
+{
+  "best_model": "XGBoost",
+  "xgb_device": "cuda",
+  "tuning": {
+    "rf_params": {
+      "model__n_estimators": 500,
+      "model__min_samples_leaf": 1,
+      "model__max_features": 0.5,
+      "model__max_depth": 30
+    },
+    "rf_seconds": 296.6868654,
+    "xgb_params": {
+      "model__subsample": 0.7,
+      "model__reg_lambda": 5,
+      "model__n_estimators": 1200,
+      "model__min_child_weight": 1,
+      "model__max_depth": 8,
+      "model__learning_rate": 0.03,
+      "model__colsample_bytree": 0.6
+    },
+    "xgb_seconds": 319.37627059999977,
+    "xgb_fit_benchmark_s": {
+      "cuda": 5.822539499999948,
+      "cpu": 3.6410733000002438
+    }
+  },
+  "test": {
+    "Baseline (mean)": {
+      "test MAE": 90806.78845743735,
+      "test RMSE": 114165.27031417929,
+      "test R2": -4.2875059214297906e-05,
+      "train R2": 0.0,
+      "overfit gap (train-test R2)": 4.2875059214297906e-05
+    },
+    "Linear Regression": {
+      "test MAE": 50542.375361808976,
+      "test RMSE": 67806.75640935497,
+      "test R2": 0.6472260226993529,
+      "train R2": 0.6592642534610942,
+      "overfit gap (train-test R2)": 0.012038230761741264
+    },
+    "Linear Regression (log target)": {
+      "test MAE": 44973.62270814553,
+      "test RMSE": 79670.11884916468,
+      "test R2": 0.5129859040247344,
+      "train R2": 0.6776729843753648,
+      "overfit gap (train-test R2)": 0.1646870803506304
+    },
+    "Random Forest": {
+      "test MAE": 31111.417786732432,
+      "test RMSE": 46826.16443499683,
+      "test R2": 0.8317605758657663,
+      "train R2": 0.9761013372349233,
+      "overfit gap (train-test R2)": 0.14434076136915697
+    },
+    "XGBoost": {
+      "test MAE": 28219.192897589634,
+      "test RMSE": 42735.56504583721,
+      "test R2": 0.8598705225573112,
+      "train R2": 0.9832823555612966,
+      "overfit gap (train-test R2)": 0.1234118330039854
+    }
+  },
+  "cv": {
+    "Baseline (mean)": {
+      "MAE mean": 91301.78864740777,
+      "MAE std": 917.1454449050761,
+      "RMSE mean": 115698.6297584493,
+      "RMSE std": 1068.1864280783693,
+      "R2 mean": -0.0002665801277664581,
+      "R2 std": 0.00033615021309400746
+    },
+    "Linear Regression": {
+      "MAE mean": 50601.29707482356,
+      "MAE std": 390.24130844374855,
+      "RMSE mean": 67830.55328770283,
+      "RMSE std": 742.1895492506294,
+      "R2 mean": 0.6561848044061749,
+      "R2 std": 0.004039918031756328
+    },
+    "Linear Regression (log target)": {
+      "MAE mean": 44624.543938424715,
+      "MAE std": 735.3134052802399,
+      "RMSE mean": 66027.26563147719,
+      "RMSE std": 971.5929382316765,
+      "R2 mean": 0.6740573665342525,
+      "R2 std": 0.012020323718564884
+    },
+    "Random Forest": {
+      "MAE mean": 32282.803709344735,
+      "MAE std": 331.7689716225804,
+      "RMSE mean": 49153.3659993093,
+      "RMSE std": 876.6040127935235,
+      "R2 mean": 0.819404603534774,
+      "R2 std": 0.006028608333414468
+    },
+    "XGBoost": {
+      "MAE mean": 29237.96573960591,
+      "MAE std": 346.55744044414666,
+      "RMSE mean": 45053.27037331858,
+      "RMSE std": 963.9386215797193,
+      "R2 mean": 0.848221131590979,
+      "R2 std": 0.007003111926434601
+    }
+  },
+  "spatial_cv": {
+    "Linear Regression": {
+      "random KFold RMSE": 67830.55328770283,
+      "spatial GroupKFold RMSE": 70044.02493279522,
+      "random KFold R2": 0.6561848044061749,
+      "spatial GroupKFold R2": 0.603720641414806,
+      "RMSE increase %": 3.2632369010819673
+    },
+    "Random Forest": {
+      "random KFold RMSE": 49153.3659993093,
+      "spatial GroupKFold RMSE": 59340.489489868654,
+      "random KFold R2": 0.819404603534774,
+      "spatial GroupKFold R2": 0.7160192733086597,
+      "RMSE increase %": 20.725179819226412
+    },
+    "XGBoost": {
+      "random KFold RMSE": 45053.27037331858,
+      "spatial GroupKFold RMSE": 59995.14024848283,
+      "random KFold R2": 0.848221131590979,
+      "spatial GroupKFold R2": 0.7100833981044035,
+      "RMSE increase %": 33.16489513714218
+    }
+  },
+  "chained_app": {
+    "true_inputs": {
+      "MAE": 28219.192897589634,
+      "RMSE": 42735.56504583721,
+      "R2": 0.8598705225573112
+    },
+    "helper_inputs": {
+      "MAE": 31410.04997691073,
+      "RMSE": 47516.197555069266,
+      "R2": 0.826765670286099
+    }
+  },
+  "paired_ttest_rf_vs_xgb": {
+    "t": 23.516939903733906,
+    "p": 1.9382549114868544e-05
+  }
+}

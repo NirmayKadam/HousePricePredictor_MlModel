@@ -1,203 +1,149 @@
-import streamlit as st
-import pandas as pd
-import numpy as np
-import joblib
-from streamlit_folium import st_folium
+import json
+from pathlib import Path
+
 import folium
-import os
+import joblib
+import pandas as pd
+import streamlit as st
+from streamlit_folium import st_folium
+
+import housing_features  # noqa: F401  (needed so joblib can unpickle the saved pipeline)
+
+MODELS, REPORTS, FIG = Path("models"), Path("reports"), Path("figures")
+LOC = ["latitude", "longitude"]
+
+st.set_page_config(page_title="California House Price Predictor", page_icon="🏠", layout="wide")
+
 
 # =========================
-# Load Models and Scaler
+# Load models and metadata
 # =========================
-# Use a caching decorator to load models only once
-@st.cache_data
-def load_models_and_scalers():
-    """
-    Loads all the necessary model and scaler .joblib files.
-    Returns the loaded objects.
-    """
-    try:
-        main_model = joblib.load("housing_xgb_model.joblib")
-        scaler = joblib.load("housing_scaler.joblib")
-        ocean_model = joblib.load("ocean_model.joblib")
-        ocean_encoder = joblib.load("ocean_encoder.joblib")
-        income_model = joblib.load("income_model.joblib")
-        return main_model, scaler, ocean_model, ocean_encoder, income_model
-    except FileNotFoundError as e:
-        # Return None for all if any file is missing
-        return None, None, None, None, None
+@st.cache_resource
+def load_artifacts():
+    """Load the full price pipeline, the two helper models and the app metadata once."""
+    pipeline = joblib.load(MODELS / "house_price_pipeline.joblib")
+    ocean_model = joblib.load(MODELS / "ocean_model.joblib")
+    income_model = joblib.load(MODELS / "income_model.joblib")
+    with open(MODELS / "app_metadata.json") as f:
+        meta = json.load(f)
+    return pipeline, ocean_model, income_model, meta
 
-# Load the models
-main_model, scaler, ocean_model, ocean_encoder, income_model = load_models_and_scalers()
 
-# Check if models loaded successfully. If not, show an error and stop the app.
-if not all([main_model, scaler, ocean_model, ocean_encoder, income_model]):
+try:
+    pipeline, ocean_model, income_model, meta = load_artifacts()
+except FileNotFoundError:
     st.error(
-        "Error: One or more model files (.joblib) are missing. "
-        "Please run the `train_helper_models_improved.py` and `model_training_improved.py` "
-        "scripts to generate all necessary model files before running the app."
+        "Model files are missing. Run all cells in `Trainer_helper_model.ipynb` first, "
+        "then in `DMBI_Project_v2.ipynb`; together they create the files in `models/`."
     )
-    st.stop() # This stops the app from running further.
-
-# Initialize session state for location validation
-if 'location_valid' not in st.session_state:
-    st.session_state['location_valid'] = False
-if 'selected_location' not in st.session_state:
-    st.session_state['selected_location'] = None
+    st.stop()
 
 # =========================
-# App Title and Description
+# Title and description
 # =========================
-st.title("🏠 California Housing Price Predictor")
-st.markdown("""
-Welcome to the California Housing Price Predictor! This tool uses a powerful machine learning model 
-to estimate the median value of a house in a given location.
-
-**How to use:**
-1.  Click on the interactive map to select a location in California.
-2.  Provide some basic details about the house you're interested in.
-3.  Click the 'Predict House Value' button to see the results!
-""")
-
-# =========================
-# User Inputs in Sidebar
-# =========================
-st.sidebar.header("Step 2: Enter House Details")
-
-# --- Inputs that a normal user would know ---
-housing_age = st.sidebar.slider("Age of the House (in years)", 1, 100, 25)
-num_bedrooms = st.sidebar.number_input("Number of Bedrooms", min_value=1, max_value=10, value=3)
-total_rooms_in_house = st.sidebar.number_input("Total Rooms in the House", min_value=1, max_value=20, value=6)
-neighborhood_type = st.sidebar.selectbox(
-    "Select Neighborhood Type",
-    ('Suburban', 'Urban', 'Rural'),
-    help="Choose the option that best describes the area."
+st.title("🏠 California House Price Predictor")
+st.markdown(
+    "Estimate the **median house value of a California neighbourhood** (census block group) "
+    f"with a {meta['best_model']} model trained on the 1990 census.\n\n"
+    "1. Enter basic details in the sidebar.\n"
+    "2. Click a location on the map.\n"
+    "3. Press **Predict house value**."
 )
 
 # =========================
-# Map for Location Input
+# User inputs (sidebar)
 # =========================
-st.header("Step 1: Select a Location on the Map")
-
-# Set a default location (center of California)
-DEFAULT_LOCATION = [36.7783, -119.4179]
-# Define the approximate bounding box for California
-CALIFORNIA_BOUNDS = [(32.5, -124.5), (42, -114)]
-
-
-# Create a Folium map with boundaries
-m = folium.Map(
-    location=DEFAULT_LOCATION, 
-    zoom_start=6, 
-    max_bounds=True, 
-    min_zoom=5
+st.sidebar.header("Step 1: House and area details")
+housing_age = st.sidebar.slider("Typical age of houses in the area (years)", 1, 52, 25,
+                                help="The training data caps age at 52 years.")
+rooms = st.sidebar.number_input("Rooms per house", min_value=1.0, max_value=15.0, value=5.0, step=0.5)
+bedrooms = st.sidebar.number_input("Bedrooms per house", min_value=0.5, max_value=8.0, value=2.0, step=0.5)
+block_type = st.sidebar.selectbox(
+    "Neighbourhood size", list(meta["presets"].keys()), index=1,
+    help="Sets households and population of the block group from the dataset's quartiles.",
 )
+if bedrooms > rooms:
+    st.sidebar.error("Bedrooms cannot exceed total rooms.")
 
-# Set the visible map area to the bounds
-m.fit_bounds(CALIFORNIA_BOUNDS)
+# =========================
+# Map input
+# =========================
+st.header("Step 2: Select a location")
+m = folium.Map(location=[37.2, -119.5], zoom_start=6, min_zoom=5, max_bounds=True,
+               min_lat=30, max_lat=44, min_lon=-127, max_lon=-111)
+map_data = st_folium(m, width=900, height=500, returned_objects=["last_clicked"])
 
-# Display the map and get the last clicked point
-map_data = st_folium(m, width=725, height=500)
-
-# Get the latitude and longitude from the map click event
-location_clicked = map_data and map_data.get("last_clicked")
-
-if location_clicked:
-    lat = map_data["last_clicked"]["lat"]
-    lon = map_data["last_clicked"]["lng"]
-    st.session_state['selected_location'] = (lat, lon)
-    st.info(f"📍 Selected Location: Latitude={lat:.4f}, Longitude={lon:.4f}")
-    
-    # --- Add boundary validation ---
-    if (CALIFORNIA_BOUNDS[0][0] <= lat <= CALIFORNIA_BOUNDS[1][0] and
-            CALIFORNIA_BOUNDS[0][1] <= lon <= CALIFORNIA_BOUNDS[1][1]):
-        st.session_state['location_valid'] = True
+clicked = map_data.get("last_clicked") if map_data else None
+location_ok = False
+if clicked:
+    lat, lon = clicked["lat"], clicked["lng"]
+    # Accept only clicks close to real training data: this rejects the ocean, Nevada and Mexico,
+    # which a simple bounding box would let through.
+    dist, _ = ocean_model.kneighbors(pd.DataFrame([[lat, lon]], columns=LOC), n_neighbors=1)
+    if dist[0][0] <= meta["max_click_distance_deg"]:
+        location_ok = True
+        st.info(f"📍 Selected: latitude {lat:.4f}, longitude {lon:.4f}")
     else:
-        st.session_state['location_valid'] = False
-        st.error("Selection out of bounds. Please click on a location within California.")
+        st.error(f"({lat:.3f}, {lon:.3f}) is too far from any California neighbourhood in the data. "
+                 "Please click on land in California.")
 else:
-    # This block runs on initial load and any rerun not caused by a map click.
-    # We invalidate the location to ensure the user must click the map.
-    st.session_state['location_valid'] = False
-    st.warning("Please click on the map to select a location.")
-
+    st.warning("Click on the map to select a location.")
 
 # =========================
-# Prediction Logic
+# Prediction
 # =========================
-if st.button("Predict House Value", type="primary", disabled=not st.session_state.get('location_valid', False)):
-    
-    # On button click, retrieve the validated coordinates from session state
-    lat, lon = st.session_state['selected_location']
+if st.button("Predict house value", type="primary", disabled=not location_ok or bedrooms > rooms):
+    loc_df = pd.DataFrame([[lat, lon]], columns=LOC)
+    ocean_label = ocean_model.predict(loc_df)[0]
+    income = float(income_model.predict(loc_df)[0])
 
-    # --- Helper Model Predictions (Automated Inputs) ---
-    # Predict ocean proximity based on coordinates
-    ocean_pred_encoded = ocean_model.predict(np.array([[lat, lon]]))
-    ocean_pred_label = ocean_encoder.inverse_transform(ocean_pred_encoded)[0]
+    preset = meta["presets"][block_type]
+    households = preset["households"]
+    # Raw block-group totals, exactly as in the training data; the saved pipeline does all
+    # feature engineering, imputation and encoding itself.
+    row = pd.DataFrame([{
+        "longitude": lon,
+        "latitude": lat,
+        "housing_median_age": housing_age,
+        "total_rooms": rooms * households,
+        "total_bedrooms": bedrooms * households,
+        "population": preset["population"],
+        "households": households,
+        "median_income": income,
+        "ocean_proximity": ocean_label,
+    }])[meta["input_columns"]]
+    prediction = float(pipeline.predict(row)[0])
 
-    # Predict median income based on coordinates
-    predicted_median_income = income_model.predict(np.array([[lat, lon]]))[0]
+    st.header("Prediction")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Estimated median house value", f"${prediction:,.0f}")
+    c2.metric("Estimated area median income", f"${income * 10000:,.0f}")
+    c3.metric("Estimated ocean proximity", ocean_label)
 
-    # --- Feature Engineering (Translating user input for the model) ---
-    # Estimate block-level stats based on neighborhood type
-    if neighborhood_type == 'Urban':
-        # Urban areas have higher density
-        population_estimate = 2000
-        households_estimate = 800
-    elif neighborhood_type == 'Suburban':
-        # Suburban is average density
-        population_estimate = 1200
-        households_estimate = 450
-    else: # Rural
-        # Rural is low density
-        population_estimate = 700
-        households_estimate = 250
-    
-    # Estimate total rooms on the block based on rooms in a single house
-    # Assume the user's house is typical for the area
-    total_rooms_block = total_rooms_in_house * households_estimate
-    total_bedrooms_block = num_bedrooms * households_estimate
+    app = meta["app_metrics"]
+    # "\$" stops Streamlit's markdown from reading dollar signs as LaTeX math
+    st.caption(
+        f"Typical error of this app: ±\\${app['MAE']:,.0f} (MAE), R² {app['R2']:.2f}. Income and ocean proximity "
+        "are estimated from the location, which adds error compared with the notebook model "
+        f"(R² {meta['test_metrics']['R2']:.2f}). Values are in 1990 dollars, and the training data caps "
+        "house values at \\$500,001, so estimates near that level are understated."
+    )
+    if prediction >= 480000:
+        st.warning("This estimate is near the \\$500k cap in the training data; the true value is likely higher.")
 
-    # Create the DataFrame with all features in the correct order for the model
-    try:
-        # Calculate the ratio features that the model expects
-        bedroom_ratio = total_bedrooms_block / total_rooms_block
-        household_rooms = total_rooms_block / households_estimate
-
-        input_data = pd.DataFrame({
-            'longitude': [lon],
-            'latitude': [lat],
-            'housing_median_age': [housing_age],
-            'total_rooms': [total_rooms_block],
-            'total_bedrooms': [total_bedrooms_block],
-            'population': [population_estimate],
-            'households': [households_estimate],
-            'median_income': [predicted_median_income],
-            # Add the two missing ratio features
-            'bedroom_ratio': [bedroom_ratio],
-            'household_rooms': [household_rooms],
-        })
-
-        # --- Scale the features ---
-        input_scaled = scaler.transform(input_data)
-
-        # --- Make the final prediction ---
-        prediction = main_model.predict(input_scaled)[0]
-
-        # =========================
-        # Display Results
-        # =========================
-        st.header("Prediction Results")
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.metric(label="Predicted House Value", value=f"${prediction:,.2f}")
-        
-        with col2:
-            st.metric(label="Predicted Ocean Proximity", value=ocean_pred_label)
-        
-        st.success("Prediction successful! The values above are estimates based on the provided data.")
-
-    except Exception as e:
-        st.error(f"An error occurred during prediction: {e}")
-
+# =========================
+# Model insights
+# =========================
+with st.expander("Model insights and limitations"):
+    comp = REPORTS / "model_comparison.csv"
+    if comp.exists():
+        df = pd.read_csv(comp, index_col=0)[["RMSE mean", "R2 mean", "test MAE", "test RMSE", "test R2"]]
+        st.dataframe(df.style.format("{:,.3f}", subset=["R2 mean", "test R2"])
+                     .format("{:,.0f}", subset=["RMSE mean", "test MAE", "test RMSE"]))
+    if (FIG / "dashboard.png").exists():
+        st.image(str(FIG / "dashboard.png"))
+    st.markdown(
+        "- Trained on **1990** census block groups: this is a teaching tool, not a valuation.\n"
+        "- Location-based pricing can reproduce historical discrimination (redlining). "
+        "Do not use it for lending, insurance or rental decisions about individuals."
+    )

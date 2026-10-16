@@ -1,0 +1,39 @@
+{
+  "best_model": "XGBoost",
+  "input_columns": [
+    "longitude",
+    "latitude",
+    "housing_median_age",
+    "total_rooms",
+    "total_bedrooms",
+    "population",
+    "households",
+    "median_income",
+    "ocean_proximity"
+  ],
+  "presets": {
+    "Rural / small block": {
+      "households": 280.0,
+      "population": 787.0
+    },
+    "Typical block": {
+      "households": 409.0,
+      "population": 1166.0
+    },
+    "Dense / large block": {
+      "households": 605.0,
+      "population": 1725.0
+    }
+  },
+  "test_metrics": {
+    "MAE": 28219.192897589634,
+    "RMSE": 42735.56504583721,
+    "R2": 0.8598705225573112
+  },
+  "app_metrics": {
+    "MAE": 31410.04997691073,
+    "RMSE": 47516.197555069266,
+    "R2": 0.826765670286099
+  },
+  "max_click_distance_deg": 0.25
+}
